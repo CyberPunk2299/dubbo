@@ -99,6 +99,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
 
     @Override
     public void onApplicationEvent(ContextRefreshedEvent event) {
+        // 是否有延迟导出 && 是否已导出 && 是不是已被取消导出
         if (isDelay() && !isExported() && !isUnexported()) {
             if (logger.isInfoEnabled()) {
                 logger.info("The service ready on spring started. service: " + getInterface());
@@ -107,6 +108,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
         }
     }
 
+    //当方法返回 true 时，表示无需延迟导出。返回 false 时，表示需要延迟导出
     private boolean isDelay() {
         Integer delay = getDelay();
         ProviderConfig provider = getProvider();
@@ -115,6 +117,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
         }
         return supportedApplicationListener && (delay == null || delay == -1);
     }
+
 
     @Override
     @SuppressWarnings({"unchecked", "deprecation"})
@@ -168,6 +171,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
                 }
             }
         }
+
         if (getModule() == null
                 && (getProvider() == null || getProvider().getModule() == null)) {
             Map<String, ModuleConfig> moduleConfigMap = applicationContext == null ? null : BeanFactoryUtils.beansOfTypeIncludingAncestors(applicationContext, ModuleConfig.class, false, false);
@@ -221,6 +225,8 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
                 }
             }
         }
+
+
         if ((getProtocols() == null || getProtocols().isEmpty())
                 && (getProvider() == null || getProvider().getProtocols() == null || getProvider().getProtocols().isEmpty())) {
             Map<String, ProtocolConfig> protocolConfigMap = applicationContext == null ? null : BeanFactoryUtils.beansOfTypeIncludingAncestors(applicationContext, ProtocolConfig.class, false, false);
@@ -248,6 +254,8 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
         }
     }
 
+
+
     /**
      * Get the name of {@link ServiceBean}
      *
@@ -268,6 +276,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
         publishExportEvent();
     }
 
+
     /**
      * @since 2.6.5
      */
@@ -275,12 +284,12 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
         ServiceBeanExportedEvent exportEvent = new ServiceBeanExportedEvent(this);
         applicationEventPublisher.publishEvent(exportEvent);
     }
-
     @Override
     public void destroy() throws Exception {
         // no need to call unexport() here, see
         // org.apache.dubbo.config.spring.extension.SpringExtensionFactory.ShutdownHookListener
     }
+
 
     // merged from dubbox
     @Override

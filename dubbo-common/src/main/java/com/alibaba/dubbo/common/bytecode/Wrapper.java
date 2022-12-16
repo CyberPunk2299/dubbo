@@ -89,8 +89,9 @@ public abstract class Wrapper {
     };
     private static AtomicLong WRAPPER_CLASS_COUNTER = new AtomicLong(0);
 
+
     /**
-     * get wrapper.
+     * get wrapper.过反射创建 Wrapper 实例
      *
      * @param c Class instance.
      * @return Wrapper instance(not null).
@@ -104,6 +105,7 @@ public abstract class Wrapper {
 
         Wrapper ret = WRAPPER_MAP.get(c);
         if (ret == null) {
+            //核心：通过反射创建wrapper
             ret = makeWrapper(c);
             WRAPPER_MAP.put(c, ret);
         }
@@ -121,27 +123,38 @@ public abstract class Wrapper {
         StringBuilder c2 = new StringBuilder("public Object getPropertyValue(Object o, String n){ ");
         StringBuilder c3 = new StringBuilder("public Object invokeMethod(Object o, String n, Class[] p, Object[] v) throws " + InvocationTargetException.class.getName() + "{ ");
 
+        // 生成类型转换代码及异常捕捉代码，比如：
+        //   DemoService w; try { w = ((DemoServcie) $1); }}catch(Throwable e){ throw new IllegalArgumentException(e); }
         c1.append(name).append(" w; try{ w = ((").append(name).append(")$1); }catch(Throwable e){ throw new IllegalArgumentException(e); }");
         c2.append(name).append(" w; try{ w = ((").append(name).append(")$1); }catch(Throwable e){ throw new IllegalArgumentException(e); }");
         c3.append(name).append(" w; try{ w = ((").append(name).append(")$1); }catch(Throwable e){ throw new IllegalArgumentException(e); }");
 
+        // pts 用于存储成员变量名和类型
         Map<String, Class<?>> pts = new HashMap<String, Class<?>>(); // <property name, property types>
+        // ms 用于存储方法描述信息（可理解为方法签名）及 Method 实例
         Map<String, Method> ms = new LinkedHashMap<String, Method>(); // <method desc, Method instance>
         List<String> mns = new ArrayList<String>(); // method names.
+        // dmns 用于存储“定义在当前类中的方法”的名称
         List<String> dmns = new ArrayList<String>(); // declaring method names.
 
+        // --------------------------------✨ 分割线1 ✨-------------------------------------
         // get all public field.
         for (Field f : c.getFields()) {
             String fn = f.getName();
             Class<?> ft = f.getType();
             if (Modifier.isStatic(f.getModifiers()) || Modifier.isTransient(f.getModifiers()))
                 continue;
-
+            // 生成条件判断及赋值语句，比如：
+            // if( $2.equals("name") ) { w.name = (java.lang.String) $3; return;}
+            // if( $2.equals("age") ) { w.age = ((Number) $3).intValue(); return;}
             c1.append(" if( $2.equals(\"").append(fn).append("\") ){ w.").append(fn).append("=").append(arg(ft, "$3")).append("; return; }");
+            // 生成条件判断及返回语句，比如：
+            // if( $2.equals("name") ) { return ($w)w.name; }
             c2.append(" if( $2.equals(\"").append(fn).append("\") ){ return ($w)w.").append(fn).append("; }");
             pts.put(fn, ft);
         }
 
+        // --------------------------------✨ 分割线2 ✨-------------------------------------
         Method[] methods = c.getMethods();
         // get all public method.
         boolean hasMethod = hasMethods(methods);
@@ -153,8 +166,12 @@ public abstract class Wrapper {
                 continue;
 
             String mn = m.getName();
+            // 生成方法名判断语句，比如：
+            // if ( "sayHello".equals( $2 )
             c3.append(" if( \"").append(mn).append("\".equals( $2 ) ");
             int len = m.getParameterTypes().length;
+            // 生成“运行时传入的参数数量与方法参数列表长度”判断语句，比如：
+            // && $3.length == 2
             c3.append(" && ").append(" $3.length == ").append(len);
 
             boolean override = false;
@@ -164,60 +181,95 @@ public abstract class Wrapper {
                     break;
                 }
             }
+            // 对重载方法进行处理，考虑下面的方法：
+            //    1. void sayHello(Integer, String)
+            //    2. void sayHello(Integer, Integer)
+            // 方法名相同，参数列表长度也相同，因此不能仅通过这两项判断两个方法是否相等。
+            // 需要进一步判断方法的参数类型
             if (override) {
                 if (len > 0) {
                     for (int l = 0; l < len; l++) {
+                        // 生成参数类型进行检测代码，比如：
+                        // && $3[0].getName().equals("java.lang.Integer")
+                        //    && $3[1].getName().equals("java.lang.String")
                         c3.append(" && ").append(" $3[").append(l).append("].getName().equals(\"")
                                 .append(m.getParameterTypes()[l].getName()).append("\")");
                     }
                 }
             }
-
+            // 添加 ) {，完成方法判断语句，此时生成的代码可能如下（已格式化）：
+            // if ("sayHello".equals($2)
+            //     && $3.length == 2
+            //     && $3[0].getName().equals("java.lang.Integer")
+            //     && $3[1].getName().equals("java.lang.String")) {
             c3.append(" ) { ");
 
+            // 根据返回值类型生成目标方法调用语句
             if (m.getReturnType() == Void.TYPE)
+                // w.sayHello((java.lang.Integer)$4[0], (java.lang.String)$4[1]); return null;
                 c3.append(" w.").append(mn).append('(').append(args(m.getParameterTypes(), "$4")).append(");").append(" return null;");
             else
+                // return w.sayHello((java.lang.Integer)$4[0], (java.lang.String)$4[1]);
                 c3.append(" return ($w)w.").append(mn).append('(').append(args(m.getParameterTypes(), "$4")).append(");");
 
+            // 添加 }, 生成的代码形如（已格式化）：
+            // if ("sayHello".equals($2)
+            //     && $3.length == 2
+            //     && $3[0].getName().equals("java.lang.Integer")
+            //     && $3[1].getName().equals("java.lang.String")) {
+            //
+            //     w.sayHello((java.lang.Integer)$4[0], (java.lang.String)$4[1]);
+            //     return null;
+            // }
             c3.append(" }");
 
+            // 添加方法名到 mns 集合中
             mns.add(mn);
             if (m.getDeclaringClass() == c)
                 dmns.add(mn);
             ms.put(ReflectUtils.getDesc(m), m);
         }
         if (hasMethod) {
+            // 添加异常捕捉语句
             c3.append(" } catch(Throwable e) { ");
             c3.append("     throw new java.lang.reflect.InvocationTargetException(e); ");
             c3.append(" }");
         }
 
+        // 添加 NoSuchMethodException 异常抛出代码
         c3.append(" throw new " + NoSuchMethodException.class.getName() + "(\"Not found method \\\"\"+$2+\"\\\" in class " + c.getName() + ".\"); }");
 
+        // --------------------------------✨ 分割线3 ✨-------------------------------------
         // deal with get/set method.
         Matcher matcher;
         for (Map.Entry<String, Method> entry : ms.entrySet()) {
             String md = entry.getKey();
             Method method = (Method) entry.getValue();
+            // 匹配以 get 开头的方法
             if ((matcher = ReflectUtils.GETTER_METHOD_DESC_PATTERN.matcher(md)).matches()) {
                 String pn = propertyName(matcher.group(1));
                 c2.append(" if( $2.equals(\"").append(pn).append("\") ){ return ($w)w.").append(method.getName()).append("(); }");
                 pts.put(pn, method.getReturnType());
-            } else if ((matcher = ReflectUtils.IS_HAS_CAN_METHOD_DESC_PATTERN.matcher(md)).matches()) {
+            }
+            //以is、has、can开头
+            else if ((matcher = ReflectUtils.IS_HAS_CAN_METHOD_DESC_PATTERN.matcher(md)).matches()) {
                 String pn = propertyName(matcher.group(1));
                 c2.append(" if( $2.equals(\"").append(pn).append("\") ){ return ($w)w.").append(method.getName()).append("(); }");
                 pts.put(pn, method.getReturnType());
-            } else if ((matcher = ReflectUtils.SETTER_METHOD_DESC_PATTERN.matcher(md)).matches()) {
+            }
+            //以set开头
+            else if ((matcher = ReflectUtils.SETTER_METHOD_DESC_PATTERN.matcher(md)).matches()) {
                 Class<?> pt = method.getParameterTypes()[0];
                 String pn = propertyName(matcher.group(1));
                 c1.append(" if( $2.equals(\"").append(pn).append("\") ){ w.").append(method.getName()).append("(").append(arg(pt, "$3")).append("); return; }");
                 pts.put(pn, pt);
             }
         }
+        // 添加 NoSuchPropertyException 异常抛出代码
         c1.append(" throw new " + NoSuchPropertyException.class.getName() + "(\"Not found property \\\"\"+$2+\"\\\" filed or setter method in class " + c.getName() + ".\"); }");
         c2.append(" throw new " + NoSuchPropertyException.class.getName() + "(\"Not found property \\\"\"+$2+\"\\\" filed or setter method in class " + c.getName() + ".\"); }");
 
+        // --------------------------------✨ 分割线4 ✨-------------------------------------
         // make class
         long id = WRAPPER_CLASS_COUNTER.getAndIncrement();
         ClassGenerator cc = ClassGenerator.newInstance(cl);
