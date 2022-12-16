@@ -31,6 +31,7 @@
         <skip_maven_deploy>false</skip_maven_deploy>
         <hessian_lite_version>3.2.4</hessian_lite_version>
     </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.alibaba</groupId>
@@ -358,6 +359,13 @@
     </dependencies>
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <testFailureIgnore>true</testFailureIgnore>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
