@@ -28,6 +28,14 @@
     <properties>
         <skip_maven_deploy>true</skip_maven_deploy>
     </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>RELEASE</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <resources>
