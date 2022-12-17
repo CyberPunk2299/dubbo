@@ -66,6 +66,7 @@ public class ZookeeperRegistry extends FailbackRegistry {
             group = Constants.PATH_SEPARATOR + group;
         }
         this.root = group;
+        // 创建 Zookeeper 客户端，默认为 CuratorZookeeperTransporter
         zkClient = zookeeperTransporter.connect(url);
         zkClient.addStateListener(new StateListener() {
             @Override
@@ -111,6 +112,11 @@ public class ZookeeperRegistry extends FailbackRegistry {
     @Override
     protected void doRegister(URL url) {
         try {
+
+            // 通过 Zookeeper 客户端创建节点，节点路径由 toUrlPath 方法生成，路径格式如下:
+            //   /${group}/${serviceInterface}/providers/${url}
+            // 比如
+            //   /dubbo/org.apache.dubbo.DemoService/providers/dubbo%3A%2F%2F127.0.0.1......
             zkClient.create(toUrlPath(url), url.getParameter(Constants.DYNAMIC_KEY, true));
         } catch (Throwable e) {
             throw new RpcException("Failed to register " + url + " to zookeeper " + getUrl() + ", cause: " + e.getMessage(), e);
