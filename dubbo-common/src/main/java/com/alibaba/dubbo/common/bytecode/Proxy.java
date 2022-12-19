@@ -81,13 +81,16 @@ public abstract class Proxy {
             throw new IllegalArgumentException("interface limit exceeded");
 
         StringBuilder sb = new StringBuilder();
+        // 遍历接口列表
         for (int i = 0; i < ics.length; i++) {
             String itf = ics[i].getName();
+            //非接口，抛异常
             if (!ics[i].isInterface())
                 throw new RuntimeException(itf + " is not a interface.");
 
             Class<?> tmp = null;
             try {
+                //重新加载接口类
                 tmp = Class.forName(itf, false, cl);
             } catch (ClassNotFoundException e) {
             }
@@ -95,6 +98,7 @@ public abstract class Proxy {
             if (tmp != ics[i])
                 throw new IllegalArgumentException(ics[i] + " is not visible from class loader");
 
+            //拼接所有接口
             sb.append(itf).append(';');
         }
 
@@ -114,6 +118,7 @@ public abstract class Proxy {
         Proxy proxy = null;
         synchronized (cache) {
             do {
+                // 从缓存中获取 Reference<Proxy> 实例
                 Object value = cache.get(key);
                 if (value instanceof Reference<?>) {
                     proxy = (Proxy) ((Reference<?>) value).get();
@@ -121,12 +126,14 @@ public abstract class Proxy {
                         return proxy;
                 }
 
+                // 并发控制，保证只有一个线程可以进行后续操作
                 if (value == PendingGenerationMarker) {
                     try {
                         cache.wait();
                     } catch (InterruptedException e) {
                     }
                 } else {
+                    // 放置标志位到缓存中，并跳出 while 循环进行后续操作
                     cache.put(key, PendingGenerationMarker);
                     break;
                 }
@@ -138,17 +145,20 @@ public abstract class Proxy {
         String pkg = null;
         ClassGenerator ccp = null, ccm = null;
         try {
+            // 创建 ClassGenerator 对象
             ccp = ClassGenerator.newInstance(cl);
 
             Set<String> worked = new HashSet<String>();
             List<Method> methods = new ArrayList<Method>();
 
             for (int i = 0; i < ics.length; i++) {
+                // 检测接口访问级别是否为 protected 或 private
                 if (!Modifier.isPublic(ics[i].getModifiers())) {
                     String npkg = ics[i].getPackage().getName();
                     if (pkg == null) {
                         pkg = npkg;
                     } else {
+                        // 非 public 级别的接口必须在同一个包下，否者抛出异常
                         if (!pkg.equals(npkg))
                             throw new IllegalArgumentException("non-public interfaces from different packages");
                     }
@@ -156,13 +166,16 @@ public abstract class Proxy {
                 ccp.addInterface(ics[i]);
 
                 for (Method method : ics[i].getMethods()) {
+                    // 获取方法描述，可理解为方法签名
                     String desc = ReflectUtils.getDesc(method);
                     if (worked.contains(desc))
                         continue;
                     worked.add(desc);
 
                     int ix = methods.size();
+                    // 获取方法返回值类型
                     Class<?> rt = method.getReturnType();
+                    // 获取参数列表
                     Class<?>[] pts = method.getParameterTypes();
 
                     StringBuilder code = new StringBuilder("Object[] args = new Object[").append(pts.length).append("];");
