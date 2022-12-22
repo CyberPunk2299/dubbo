@@ -73,25 +73,41 @@ public class DubboInvoker<T> extends AbstractInvoker<T> {
 
         ExchangeClient currentClient;
         if (clients.length == 1) {
+            // 从 clients 数组中获取 ExchangeClient
             currentClient = clients[0];
         } else {
             currentClient = clients[index.getAndIncrement() % clients.length];
         }
         try {
+            // 获取异步配置
             boolean isAsync = RpcUtils.isAsync(getUrl(), invocation);
+            // isOneway 为 true，表示“单向”通信
             boolean isOneway = RpcUtils.isOneway(getUrl(), invocation);
             int timeout = getUrl().getMethodParameter(methodName, Constants.TIMEOUT_KEY, Constants.DEFAULT_TIMEOUT);
+
+            // 异步无返回值
             if (isOneway) {
                 boolean isSent = getUrl().getMethodParameter(methodName, Constants.SENT_KEY, false);
                 currentClient.send(inv, isSent);
                 RpcContext.getContext().setFuture(null);
                 return new RpcResult();
-            } else if (isAsync) {
+            }
+            //异步有返回值
+            else if (isAsync) {
+                // 异步模式下则是将该对象封装到 FutureAdapter 实例中，并将 FutureAdapter 实例设置到 RpcContext 中，供用户使用。
+                // FutureAdapter 是一个适配器，用于将 Dubbo 中的 ResponseFuture 与 JDK 中的 Future 进行适配。
+                // 这样当用户线程调用 Future 的 get 方法时，经过 FutureAdapter 适配，最终会调用 ResponseFuture 实现类对象的 get 方法，也
+                // 就是 DefaultFuture 的 get 方法。
                 ResponseFuture future = currentClient.request(inv, timeout);
                 RpcContext.getContext().setFuture(new FutureAdapter<Object>(future));
                 return new RpcResult();
-            } else {
+            }
+            // 同步调用
+            else {
                 RpcContext.getContext().setFuture(null);
+                //当服务消费者还未接收到调用结果时，用户线程调用 get 方法会被阻塞住。
+                // 发送请求，得到一个 ResponseFuture 实例，并立即调用该实例的 get 方法进行等待
+                // 同步调用模式下，框架获得 DefaultFuture 对象后，会立即调用 get 方法进行等待。
                 return (Result) currentClient.request(inv, timeout).get();
             }
         } catch (TimeoutException e) {
