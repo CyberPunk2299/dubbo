@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 final class ReferenceCountExchangeClient implements ExchangeClient {
 
     private final URL url;
+    //TODO：这个引用计数变量到底是用来干嘛的？不是自增，就是自减
     private final AtomicInteger refenceCount = new AtomicInteger(0);
 
     //    private final ExchangeHandler handler;
@@ -45,6 +46,7 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     public ReferenceCountExchangeClient(ExchangeClient client, ConcurrentMap<String, LazyConnectExchangeClient> ghostClientMap) {
         this.client = client;
+        // 引用计数自增
         refenceCount.incrementAndGet();
         this.url = client.getUrl();
         if (ghostClientMap == null) {
@@ -60,6 +62,7 @@ final class ReferenceCountExchangeClient implements ExchangeClient {
 
     @Override
     public ResponseFuture request(Object request) throws RemotingException {
+        // 直接调用被装饰对象的同签名方法
         return client.request(request);
     }
 
