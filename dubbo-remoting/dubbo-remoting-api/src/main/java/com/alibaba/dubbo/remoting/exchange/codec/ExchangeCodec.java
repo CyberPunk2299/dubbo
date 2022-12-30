@@ -50,9 +50,9 @@ import java.io.InputStream;
  */
 public class ExchangeCodec extends TelnetCodec {
 
-    // header length.
+    // header length. 消息头长度
     protected static final int HEADER_LENGTH = 16;
-    // magic header.
+    // magic header.  魔数
     protected static final short MAGIC = (short) 0xdabb;
     protected static final byte MAGIC_HIGH = Bytes.short2bytes(MAGIC)[0];
     protected static final byte MAGIC_LOW = Bytes.short2bytes(MAGIC)[1];
@@ -224,6 +224,7 @@ public class ExchangeCodec extends TelnetCodec {
         Bytes.short2bytes(MAGIC, header);
 
         // set request and serialization flag.
+        // 设置数据包类型（Request/Response）和序列化器编号
         header[2] = (byte) (FLAG_REQUEST | serialization.getContentTypeId());
 
         if (req.isTwoWay()) header[2] |= FLAG_TWOWAY;
