@@ -83,12 +83,14 @@ public class ExchangeCodec extends TelnetCodec {
         int readable = buffer.readableBytes();
         byte[] header = new byte[Math.min(readable, HEADER_LENGTH)];
         buffer.readBytes(header);
+        //后续解码
         return decode(channel, buffer, readable, header);
     }
 
     @Override
     protected Object decode(Channel channel, ChannelBuffer buffer, int readable, byte[] header) throws IOException {
         // check magic number.
+        // 检查魔数是否相等
         if (readable > 0 && header[0] != MAGIC_HIGH
                 || readable > 1 && header[1] != MAGIC_LOW) {
             int length = header.length;
@@ -103,15 +105,19 @@ public class ExchangeCodec extends TelnetCodec {
                     break;
                 }
             }
+            // 通过 telnet 命令行发送的数据包不包含消息头，所以这里
+            // 调用 TelnetCodec 的 decode 方法对数据包进行解码
             return super.decode(channel, buffer, readable, header);
         }
         // check length.
+        // 检测可读数据量是否少于消息头长度，若小于则立即返回 DecodeResult.NEED_MORE_INPUT
         if (readable < HEADER_LENGTH) {
             return DecodeResult.NEED_MORE_INPUT;
         }
 
         // get data length.
         int len = Bytes.bytes2int(header, 12);
+        // 检测消息体长度是否超出限制，超出则抛出异常
         checkPayload(channel, len);
 
         int tt = len + HEADER_LENGTH;
@@ -123,6 +129,7 @@ public class ExchangeCodec extends TelnetCodec {
         ChannelBufferInputStream is = new ChannelBufferInputStream(buffer, len);
 
         try {
+            // 继续进行解码工作
             return decodeBody(channel, is, header);
         } finally {
             if (is.available() > 0) {
