@@ -61,9 +61,13 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
 
     @Override
     protected Object decodeBody(Channel channel, InputStream is, byte[] header) throws IOException {
+        // 获取消息头中的第三个字节，并通过逻辑与运算得到序列化器编号
+        //0 ~ 7魔数高位 8 ~ 15魔数低位 16数据包类型, 0response,1 request
+        //这里取得第16位~24位
         byte flag = header[2], proto = (byte) (flag & SERIALIZATION_MASK);
         // get request id.
         long id = Bytes.bytes2long(header, 4);
+        // 通过逻辑与运算得到调用类型，0 - Response，1 - Request
         if ((flag & FLAG_REQUEST) == 0) {
             // decode response.
             Response res = new Response(id);
@@ -116,6 +120,7 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
             Request req = new Request(id);
             req.setVersion(Version.getProtocolVersion());
             req.setTwoWay((flag & FLAG_TWOWAY) != 0);
+            //0 - 当前数据包是请求或响应包，1 - 当前数据包是心跳包
             if ((flag & FLAG_EVENT) != 0) {
                 req.setEvent(Request.HEARTBEAT_EVENT);
             }
@@ -123,14 +128,17 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
                 Object data;
                 if (req.isHeartbeat()) {
                     byte[] eventPayload = CodecSupport.getPayload(is);
+                    // 对心跳包进行解码，该方法已被标注为废弃
                     data = decodeHeartbeatData(channel,
                             CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload), proto), eventPayload);
                 } else if (req.isEvent()) {
                     byte[] eventPayload = CodecSupport.getPayload(is);
+                    // 对事件数据进行解码
                     data = decodeEventData(channel,
                             CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload), proto), eventPayload);
                 } else {
                     DecodeableRpcInvocation inv;
+                    // 根据 url 参数判断是否在 IO 线程上对消息体进行解码
                     if (channel.getUrl().getParameter(
                             Constants.DECODE_IN_IO_THREAD_KEY,
                             Constants.DEFAULT_DECODE_IN_IO_THREAD)) {

@@ -92,16 +92,17 @@ public class DecodeableRpcInvocation extends RpcInvocation implements Codec, Dec
         ObjectInput in = CodecSupport.getSerialization(channel.getUrl(), serializationType)
                 .deserialize(channel.getUrl(), input);
         this.put(SERIALIZATION_ID_KEY, serializationType);
-
+        // 通过反序列化得到 dubbo version，并保存到 attachments 变量中
         String dubboVersion = in.readUTF();
         request.setVersion(dubboVersion);
         setAttachment(Constants.DUBBO_VERSION_KEY, dubboVersion);
 
+        // 通过反序列化得到 path，version，并保存到 attachments 变量中
         String path = in.readUTF();
         setAttachment(Constants.PATH_KEY, path);
         String version = in.readUTF();
         setAttachment(Constants.VERSION_KEY, version);
-
+        // 通过反序列化得到调用方法名
         setMethodName(in.readUTF());
         try {
             if (Boolean.parseBoolean(System.getProperty(SERIALIZATION_SECURITY_CHECK_KEY, "false"))) {
