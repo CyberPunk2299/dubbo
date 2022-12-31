@@ -77,6 +77,7 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
 
     Response handleRequest(ExchangeChannel channel, Request req) throws RemotingException {
         Response res = new Response(req.getId(), req.getVersion());
+        // 检测请求是否合法，不合法则返回状态码为 BAD_REQUEST 的响应
         if (req.isBroken()) {
             Object data = req.getData();
 
@@ -90,6 +91,7 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
             return res;
         }
         // find handler by message class.
+        // 获取 data 字段值，也就是 RpcInvocation 对象
         Object msg = req.getData();
         try {
             // handle data.
@@ -169,6 +171,7 @@ public class HeaderExchangeHandler implements ChannelHandlerDelegate {
                 if (request.isEvent()) {
                     handlerEvent(channel, request);
                 } else {
+                    //双向通信
                     if (request.isTwoWay()) {
                         Response response = handleRequest(exchangeChannel, request);
                         channel.send(response);

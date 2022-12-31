@@ -52,6 +52,7 @@ public class ChannelEventRunnable implements Runnable {
 
     @Override
     public void run() {
+        //请求和响应消息出现频率明显比其他类型消息高，所以这里对该类型的消息进行了针对性判断。
         if (state == ChannelState.RECEIVED) {
             try {
                 handler.received(channel, message);
