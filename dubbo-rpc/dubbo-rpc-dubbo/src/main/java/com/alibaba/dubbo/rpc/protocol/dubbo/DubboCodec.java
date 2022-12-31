@@ -62,7 +62,7 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
     @Override
     protected Object decodeBody(Channel channel, InputStream is, byte[] header) throws IOException {
         // 获取消息头中的第三个字节，并通过逻辑与运算得到序列化器编号
-        //0 ~ 7魔数高位 8 ~ 15魔数低位 16数据包类型, 0response,1 request
+        //第16位是数据包类型, 0response,1 request
         //这里取得第16位~24位
         byte flag = header[2], proto = (byte) (flag & SERIALIZATION_MASK);
         // get request id.
@@ -80,11 +80,12 @@ public class DubboCodec extends ExchangeCodec implements Codec2 {
             try {
                 if (status == Response.OK) {
                     Object data;
+                    //心跳事件
                     if (res.isHeartbeat()) {
                         byte[] eventPayload = CodecSupport.getPayload(is);
                         data = decodeHeartbeatData(channel,
                                 CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload), proto), eventPayload);
-                    } else if (res.isEvent()) {
+                    } else if (res.isEvent()) { //事件
                         byte[] eventPayload = CodecSupport.getPayload(is);
                         data = decodeEventData(channel,
                                 CodecSupport.deserialize(channel.getUrl(), new ByteArrayInputStream(eventPayload), proto), eventPayload);

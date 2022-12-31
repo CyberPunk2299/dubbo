@@ -87,6 +87,7 @@ public class DecodeableRpcInvocation extends RpcInvocation implements Codec, Dec
         throw new UnsupportedOperationException();
     }
 
+    //通过反序列化将诸如 path、version、调用方法名、参数列表等信息依次解析出来，并设置到相应的字段中，最终得到一个具有完整调用信息的 DecodeableRpcInvocation 对象。
     @Override
     public Object decode(Channel channel, InputStream input) throws IOException {
         ObjectInput in = CodecSupport.getSerialization(channel.getUrl(), serializationType)
@@ -111,15 +112,18 @@ public class DecodeableRpcInvocation extends RpcInvocation implements Codec, Dec
 
             Object[] args;
             Class<?>[] pts;
+            // 通过反序列化得到参数类型字符串，比如 Ljava/lang/String;
             String desc = in.readUTF();
             if (desc.length() == 0) {
                 pts = DubboCodec.EMPTY_CLASS_ARRAY;
                 args = DubboCodec.EMPTY_OBJECT_ARRAY;
             } else {
+                // 将 desc 解析为参数类型数组
                 pts = ReflectUtils.desc2classArray(desc);
                 args = new Object[pts.length];
                 for (int i = 0; i < args.length; i++) {
                     try {
+                        // 解析运行时参数
                         args[i] = in.readObject(pts[i]);
                     } catch (Exception e) {
                         if (log.isWarnEnabled()) {
@@ -128,22 +132,24 @@ public class DecodeableRpcInvocation extends RpcInvocation implements Codec, Dec
                     }
                 }
             }
+            // 设置参数类型数组
             setParameterTypes(pts);
-
             Map<String, String> map = (Map<String, String>) in.readObject(Map.class);
             if (map != null && map.size() > 0) {
+                // 通过反序列化得到原 attachment 的内容
                 Map<String, String> attachment = getAttachments();
                 if (attachment == null) {
                     attachment = new HashMap<String, String>();
                 }
                 attachment.putAll(map);
+                //将新map与原有attachment相融合
                 setAttachments(attachment);
             }
             //decode argument ,may be callback
             for (int i = 0; i < args.length; i++) {
                 args[i] = decodeInvocationArgument(channel, this, pts, i, args[i]);
             }
-
+            //设置参数列表
             setArguments(args);
 
         } catch (ClassNotFoundException e) {
